@@ -47,8 +47,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     <div className="flex flex-col h-full space-y-6">
       <h2 className="text-xl font-bold text-white border-b border-primary/20 pb-2">Simulation Setup</h2>
       
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-white">1. 3D Model</h3>
+      <div className="space-y-2">
+        <h3 className="text-lg font-semibold text-white mb-2">1. 3D Model</h3>
         <input
           type="file"
           ref={fileInputRef}
@@ -65,6 +65,9 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <UploadIcon className="w-5 h-5" />
           <span>{isIdle ? 'Upload Model' : 'Model Loaded'}</span>
         </button>
+        <p className="text-xs text-center text-base-content/60">
+          Accepted formats: .stl, .obj, .ply
+        </p>
       </div>
 
       <div className="space-y-4">

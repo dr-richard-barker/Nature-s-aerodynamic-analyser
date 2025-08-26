@@ -20,272 +20,221 @@ const StreamlinesOverlay: React.FC<{ windSpeed: number; windDirection: number }>
         <path d="M -50 150 Q 200 100, 400 200 T 850 300" stroke="#3abff8" strokeWidth="2" fill="none" style={{ ...animationStyle, strokeDasharray: '15 25' }} />
         <path d="M -50 250 Q 250 220, 400 250 T 850 220" stroke="#3abff8" strokeWidth="2" fill="none" style={{ ...animationStyle, strokeDasharray: '15 25', animationDelay: '-0.3s' }} />
         <path d="M -50 350 Q 200 400, 400 380 T 850 450" stroke="#3abff8" strokeWidth="2" fill="none" style={{ ...animationStyle, strokeDasharray: '15 25', animationDelay: '-0.6s' }}/>
-        <path d="M -50 450 Q 250 480, 400 450 T 850 420" stroke="#3abff8" strokeWidth="2" fill="none" style={{ ...animationStyle, strokeDasharray: '15 25', animationDelay: '-0.8s' }}/>
+        <path d="M -50 450 Q 250 480, 400 450 T 850 420" stroke="#3abff8" strokeWidth="2" fill="none" style={{ ...animationStyle, strokeDasharray: '15 25', animationDelay: '-0.9s' }}/>
       </g>
     </svg>
   );
 };
 
-const PressureOverlay: React.FC<{ windSpeed: number; windDirection: number }> = ({ windSpeed, windDirection }) => {
-    const intensity = Math.min(1, 0.4 + windSpeed / 40); // Intensity increases with speed
+const VelocityOverlay: React.FC<{ windDirection: number }> = ({ windDirection }) => (
+    <div className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ transform: `rotate(${windDirection}deg)` }}>
+        {[...Array(5)].map((_, i) => (
+             <div key={i} className="absolute text-primary text-2xl font-bold" style={{ top: `${15 + i*15}%`, left: '10%', animation: `flow-arrow 1.5s ease-in-out ${i*0.1}s infinite` }}>&rarr;</div>
+        ))}
+        <style>{`
+          @keyframes flow-arrow {
+            0% { transform: translateX(0); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateX(50px); opacity: 0; }
+          }
+        `}</style>
+    </div>
+);
+
+const PressureOverlay: React.FC<{ windDirection: number }> = ({ windDirection }) => {
     return (
-    <svg className="absolute top-0 left-0 w-full h-full pointer-events-none mix-blend-screen" viewBox="0 0 800 600" preserveAspectRatio="none">
-    <defs>
-        <filter id="blurFilter" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="15" />
-        </filter>
-        <radialGradient id="highPressureGrad" cx="0.3" cy="0.5" r="0.4">
-            <stop offset="0%" stopColor="#f87272" stopOpacity="1" />
-            <stop offset="50%" stopColor="#fbbd23" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#36d399" stopOpacity="0.2" />
-        </radialGradient>
-         <radialGradient id="lowPressureGrad" cx="0.5" cy="0.25" r="0.5">
-            <stop offset="0%" stopColor="#3abff8" stopOpacity="1" />
-            <stop offset="60%" stopColor="#3abff8" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#3abff8" stopOpacity="0" />
-        </radialGradient>
-    </defs>
-    
-    <g filter="url(#blurFilter)" transform={`rotate(${windDirection} 400 300)`} style={{ opacity: intensity }}>
-      {/* High pressure zone at the front */}
-      <ellipse cx="280" cy="300" rx="150" ry="200" fill="url(#highPressureGrad)" />
+        <div className="absolute w-full h-full top-0 left-0 pointer-events-none flex items-center justify-center">
+             <div className="absolute w-12 h-24 bg-red-500/30 rounded-full blur-xl animate-pulse" style={{ transform: `translateX(-60px) rotate(${windDirection}deg)` }}></div>
+             <div className="absolute w-20 h-32 bg-blue-500/30 rounded-full blur-2xl animate-pulse" style={{ transform: `translateX(70px) rotate(${windDirection}deg)` }}></div>
+        </div>
+    )
+};
 
-      {/* Low pressure zone over the top */}
-      <ellipse cx="450" cy="180" rx="200" ry="80" fill="url(#lowPressureGrad)" />
+const ForceOverlay: React.FC<{ forceCoefficients: { cd: number | null; cl: number | null }, windDirection: number }> = ({ forceCoefficients, windDirection }) => {
+    const { cd, cl } = forceCoefficients;
+    const dragMagnitude = cd ? Math.min(150, 20 + cd * 100) : 0;
+    const liftMagnitude = cl ? cl * 100 : 0;
 
-      {/* Another low pressure/wake area */}
-       <ellipse cx="650" cy="300" rx="180" ry="150" fill="url(#lowPressureGrad)" opacity="0.7" />
-    </g>
-  </svg>
-)};
-
-const VelocityOverlay: React.FC<{ windSpeed: number; windDirection: number }> = ({ windSpeed, windDirection }) => {
-    const vecLength = 20 + windSpeed * 2.5; // Vector length increases with speed
-    return (
-    <svg className="absolute top-0 left-0 w-full h-full pointer-events-none" viewBox="0 0 800 600" preserveAspectRatio="none">
-        <defs>
-            <marker id="vec-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#fbbd23" />
-            </marker>
-        </defs>
-        <g transform={`rotate(${windDirection} 400 300)`}>
-            {/* Vectors around the object */}
-            <line x1="100" y1="200" x2={100 + vecLength} y2="200" stroke="#fbbd23" strokeWidth="3" markerEnd="url(#vec-arrow)" />
-            <line x1="100" y1="300" x2={100 + vecLength} y2="300" stroke="#fbbd23" strokeWidth="3" markerEnd="url(#vec-arrow)" />
-            <line x1="100" y1="400" x2={100 + vecLength} y2="400" stroke="#fbbd23" strokeWidth="3" markerEnd="url(#vec-arrow)" />
-            
-            {/* Accelerated flow over the top */}
-            <path d="M 300 150 C 400 130, 500 150, 600 180" stroke="#fbbd23" strokeWidth="4" fill="none" markerEnd="url(#vec-arrow)" />
-            
-            {/* Wake region */}
-            <line x1="650" y1="280" x2="620" y2="280" stroke="#3abff8" strokeWidth="2" markerEnd="url(#vec-arrow)" />
-            <line x1="660" y1="320" x2="630" y2="320" stroke="#3abff8" strokeWidth="2" markerEnd="url(#vec-arrow)" />
-        </g>
-    </svg>
-)};
-
-interface ForceCoefficients {
-  cd: number | null;
-  cl: number | null;
-}
-
-const ForcesOverlay: React.FC<{ coefficients: ForceCoefficients; windDirection: number; windSpeed: number }> = ({ coefficients, windDirection, windSpeed }) => {
-    const { cd, cl } = coefficients;
-
-    // Base properties
-    const centerX = 400;
-    const centerY = 300;
-    const dragBaseLength = 50;
-    const liftBaseLength = 50;
-    const scaleFactor = 100; // Multiplier for coefficient effect on arrow length
-
-    // Forces scale with velocity squared. Normalize against a moderate speed (e.g., 25 m/s)
-    const speedScale = Math.max(0.1, Math.min(4, (windSpeed * windSpeed) / (25 * 25)));
-
-    // Calculate dynamic properties, with fallbacks for null values to ensure something is always rendered
-    const dragLength = dragBaseLength + Math.abs(cd ?? 0.5) * scaleFactor * speedScale;
-    const liftValue = cl ?? 0.2; // Default to small positive lift if not found in analysis
-    const liftLength = liftBaseLength + Math.abs(liftValue) * scaleFactor * speedScale;
-    const liftYEnd = centerY - (liftLength * Math.sign(liftValue));
-    
-    const isDownforce = liftValue < 0;
-    const liftLabel = isDownforce ? "Downforce" : "Lift";
-    const liftColor = isDownforce ? "#fbbd23" : "#36d399"; // Warning color for downforce, success for lift
-    const liftLabelY = (centerY + liftYEnd) / 2;
-    
-    // Text coordinates in the un-rotated system
-    const dragTextX = centerX + dragLength / 2;
-    const dragTextY = centerY - 10;
-    const liftTextX = centerX - 10;
+    const arrowStyle: React.CSSProperties = {
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px'
+    };
 
     return (
-        <svg className="absolute top-0 left-0 w-full h-full pointer-events-none" viewBox="0 0 800 600" preserveAspectRatio="none">
-             <defs>
-                <marker id="force-arrow-drag" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto" fill="#f87272">
-                    <path d="M 0 0 L 10 5 L 0 10 z" />
-                </marker>
-                <marker id="force-arrow-lift" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto" fill={liftColor}>
-                    <path d="M 0 0 L 10 5 L 0 10 z" />
-                </marker>
-            </defs>
-            <g transform={`rotate(${windDirection} 400 300)`}>
-                {/* Drag Force */}
-                <g className="opacity-90 animate-[fadeIn_0.5s_ease-in-out]">
-                    <line className="transition-all duration-300 ease-in-out" x1={centerX} y1={centerY} x2={centerX + dragLength} y2={centerY} stroke="#f87272" strokeWidth="5" markerEnd="url(#force-arrow-drag)" />
-                    <text x={dragTextX} y={dragTextY} fill="white" fontSize="24" textAnchor="middle" className="font-bold drop-shadow-lg transition-all duration-300 ease-in-out" transform={`rotate(${-windDirection} ${dragTextX} ${dragTextY})`}>Drag</text>
-                </g>
-                {/* Lift/Downforce */}
-                <g className="opacity-90 animate-[fadeIn_0.5s_ease-in-out]">
-                    <line className="transition-all duration-300 ease-in-out" x1={centerX} y1={centerY} x2={centerX} y2={liftYEnd} stroke={liftColor} strokeWidth="5" markerEnd="url(#force-arrow-lift)" />
-                    <text x={liftTextX} y={liftLabelY} fill="white" fontSize="24" textAnchor="end" className="font-bold drop-shadow-lg transition-all duration-300 ease-in-out" transform={`rotate(${-windDirection} ${liftTextX} ${liftLabelY})`}>{liftLabel}</text>
-                </g>
-            </g>
-        </svg>
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none flex items-center justify-center" style={{ transform: `rotate(${windDirection}deg)` }}>
+            {dragMagnitude > 0 && (
+                <div style={{...arrowStyle, transform: 'translate(50px, -50%)', color: '#f87272'}}>
+                    <span className="text-xs font-bold">Drag</span>
+                    <svg width={dragMagnitude} height="20" viewBox={`0 0 ${dragMagnitude} 20`}>
+                        <line x1="0" y1="10" x2={dragMagnitude - 10} y2="10" stroke="currentColor" strokeWidth="2" />
+                        <polygon points={`${dragMagnitude-10},5 ${dragMagnitude},10 ${dragMagnitude-10},15`} fill="currentColor" />
+                    </svg>
+                </div>
+            )}
+            {liftMagnitude !== 0 && (
+                 <div style={{ ...arrowStyle, color: '#3abff8', transform: `translate(-50%, ${liftMagnitude > 0 ? '-50px' : '30px'}) rotate(${liftMagnitude > 0 ? -90 : 90}deg)` }}>
+                    <span className="text-xs font-bold">{liftMagnitude > 0 ? 'Lift' : 'Downforce'}</span>
+                    <svg width={Math.abs(liftMagnitude)} height="20" viewBox={`0 0 ${Math.abs(liftMagnitude)} 20`}>
+                        <line x1="0" y1="10" x2={Math.abs(liftMagnitude) - 10} y2="10" stroke="currentColor" strokeWidth="2" />
+                        <polygon points={`${Math.abs(liftMagnitude)-10},5 ${Math.abs(liftMagnitude)},10 ${Math.abs(liftMagnitude)-10},15`} fill="currentColor" />
+                    </svg>
+                </div>
+            )}
+        </div>
     );
 };
-// --- End Visualization Overlays ---
 
-// --- Analysis Highlight Components ---
-const HighlightPoint: React.FC<{ cx: string; cy: string; color: string; label: string }> = ({ cx, cy, color, label }) => (
-  <g className="animate-[fadeIn_0.5s_ease-in-out]">
-    <circle cx={cx} cy={cy} r="15" fill={color} fillOpacity="0.3" stroke={color} strokeWidth="2">
-      <animate attributeName="r" from="15" to="25" dur="1.5s" begin="0s" repeatCount="indefinite" />
-      <animate attributeName="opacity" from="0.7" to="0" dur="1.5s" begin="0s" repeatCount="indefinite" />
-    </circle>
-    <circle cx={cx} cy={cy} r="8" fill={color} />
-    <text x={cx} y={cy} dy="40" textAnchor="middle" fill="white" fontSize="16" className="font-sans font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-        {label}
-    </text>
-  </g>
-);
-
-const TurbulentArea: React.FC = () => (
-  <g className="animate-[fadeIn_0.5s_ease-in-out]">
-    <style>{`
-      .turbulent-path {
-        stroke-dasharray: 8 12;
-        stroke-dashoffset: 0;
-        animation: turbulent-flow 1.2s linear infinite;
-      }
-      @keyframes turbulent-flow {
-        from { stroke-dashoffset: 0; }
-        to { stroke-dashoffset: -20; }
-      }
-    `}</style>
-    <path className="turbulent-path" d="M 600 250 c 30 -50, 80 50, 0 0 z" stroke="#828df8" strokeWidth="2.5" fill="none" />
-    <path className="turbulent-path" d="M 620 320 c 40 40, 20 -60, 0 0 z" stroke="#828df8" strokeWidth="2" fill="none" style={{ animationDelay: '-0.4s', animationDuration: '1s' }} />
-    <path className="turbulent-path" d="M 650 280 c -30 40, 40 -30, 0 0 z" stroke="#828df8" strokeWidth="2" fill="none" style={{ animationDelay: '-0.8s', animationDuration: '1.5s' }} />
-    <path className="turbulent-path" d="M 630 380 c 50 -30, -20 50, 0 0 z" stroke="#828df8" strokeWidth="2.5" fill="none" style={{ animationDelay: '-0.2s', animationDuration: '1.3s' }} />
-    <text x="680" y="330" textAnchor="middle" fill="white" fontSize="16" className="font-sans font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-        Turbulent Wake
-    </text>
-  </g>
-);
-
-
-interface AnalysisHighlightsOverlayProps {
-  analysisResult: string;
-  visualization: VisualizationOptions;
-}
-
-const AnalysisHighlightsOverlay: React.FC<AnalysisHighlightsOverlayProps> = ({ analysisResult, visualization }) => {
-  const hasHighPressure = /high-pressure|stagnation point/i.test(analysisResult);
-  const hasLowPressure = /low-pressure|flow acceleration/i.test(analysisResult);
-  const hasTurbulence = /wake region|turbulence|flow separation/i.test(analysisResult);
-
-  const showTurbulence = hasTurbulence && (visualization.streamlines || visualization.velocity);
-  const showPressurePoints = hasHighPressure && hasLowPressure && visualization.pressure;
-
-  if (!analysisResult) return null;
-
-  return (
-    <svg className="absolute top-0 left-0 w-full h-full pointer-events-none" viewBox="0 0 800 600" preserveAspectRatio="none">
-      {showPressurePoints && (
-        <>
-          <HighlightPoint cx="250" cy="300" color="#f87272" label="High Pressure" />
-          <HighlightPoint cx="400" cy="180" color="#3abff8" label="Low Pressure" />
-        </>
-      )}
-      {showTurbulence && <TurbulentArea />}
-    </svg>
-  );
-};
-
-// --- Main Viewer Component ---
 interface ViewerProps {
   simulationState: SimulationState;
   visualization: VisualizationOptions;
   analysisResult: string;
-  forceCoefficients: ForceCoefficients;
+  forceCoefficients: { cd: number | null; cl: number | null };
   windSpeed: number;
   windDirection: number;
 }
 
-const Viewer: React.FC<ViewerProps> = ({ simulationState, visualization, analysisResult, forceCoefficients, windSpeed, windDirection }) => {
-  const [rotation, setRotation] = useState({ x: -20, y: 30 });
-  const isDragging = useRef(false);
-  const prevMousePos = useRef({ x: 0, y: 0 });
+const Viewer: React.FC<ViewerProps> = ({ 
+    simulationState, 
+    visualization,
+    analysisResult,
+    forceCoefficients,
+    windSpeed,
+    windDirection,
+}) => {
+  const [rotation, setRotation] = useState({ x: -20, y: 20 });
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  
+  const [isDragging, setIsDragging] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [lastMousePosition, setLastMousePosition] = useState({ x: 0, y: 0 });
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true;
-    prevMousePos.current = { x: e.clientX, y: e.clientY };
+  const viewerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setLastMousePosition({ x: e.clientX, y: e.clientY });
+    if (e.button === 2) {
+      setIsPanning(true);
+    } else {
+      setIsDragging(true);
+    }
   }, []);
 
   const handleMouseUp = useCallback(() => {
-    isDragging.current = false;
-  }, []);
-  
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging.current) return;
-    const deltaX = e.clientX - prevMousePos.current.x;
-    const deltaY = e.clientY - prevMousePos.current.y;
-    // Fix: The updater function for setRotation must return a complete state object with both x and y.
-    setRotation(prev => ({
-      x: Math.max(-90, Math.min(90, prev.x - deltaY * 0.5)),
-      y: prev.y + deltaX * 0.5,
-    }));
-    prevMousePos.current = { x: e.clientX, y: e.clientY };
+    setIsDragging(false);
+    setIsPanning(false);
   }, []);
 
-  // Fix: The component must return a JSX element to be a valid React Functional Component.
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging && !isPanning) return;
+    
+    const dx = e.clientX - lastMousePosition.x;
+    const dy = e.clientY - lastMousePosition.y;
+
+    if (isDragging) {
+      setRotation(prev => ({
+        x: prev.x + dx * 0.5,
+        y: Math.max(-90, Math.min(90, prev.y - dy * 0.5)),
+      }));
+    }
+
+    if (isPanning) {
+      setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+    }
+    
+    setLastMousePosition({ x: e.clientX, y: e.clientY });
+  }, [isDragging, isPanning, lastMousePosition.x, lastMousePosition.y]);
+
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setZoom(prev => {
+        const newZoom = prev - e.deltaY * 0.001;
+        return Math.max(0.1, Math.min(5, newZoom));
+    });
+  }, []);
+  
+  const handleContextMenu = (e: React.MouseEvent) => e.preventDefault();
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
+
+  const showPlaceholder = simulationState === SimulationState.IDLE || simulationState === SimulationState.CONFIGURING;
+  const showSimulation = simulationState === SimulationState.RUNNING || simulationState === SimulationState.COMPLETED;
+  const showControlsHint = simulationState === SimulationState.IDLE || simulationState === SimulationState.CONFIGURING;
+  
   return (
-    <div
-      className="w-full h-full bg-base-100 rounded-md relative cursor-grab active:cursor-grabbing perspective-[1000px] touch-none select-none"
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onMouseMove={handleMouseMove}
+    <div 
+        ref={viewerRef}
+        className="w-full h-full bg-base-100 rounded-lg flex items-center justify-center overflow-hidden relative cursor-grab active:cursor-grabbing select-none"
+        onMouseDown={handleMouseDown}
+        onWheel={handleWheel}
+        onContextMenu={handleContextMenu}
     >
-      {simulationState === SimulationState.IDLE || simulationState === SimulationState.CONFIGURING ? (
-        <div className="w-full h-full flex flex-col items-center justify-center text-base-content/60 p-4 text-center">
-          <CubeIcon className="w-24 h-24 mb-4" />
-          <p>Upload a model and run the simulation to see results.</p>
+      {showPlaceholder && (
+        <div className="text-center text-base-content/50">
+          <CubeIcon className="w-24 h-24 mx-auto mb-4" />
+          <p className="font-semibold">Upload a 3D model to begin</p>
         </div>
-      ) : (
-        <>
-          <div
-            className="absolute inset-0 flex items-center justify-center transition-transform duration-100 ease-out"
-            style={{ transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`, transformStyle: 'preserve-3d' }}
-          >
-            <div className="w-64 h-32 bg-primary/20 rounded-lg shadow-xl relative flex items-center justify-center">
-              <CubeIcon className="w-16 h-16 text-primary" />
-            </div>
-          </div>
-          {/* Overlays */}
-          {simulationState === SimulationState.COMPLETED && (
-             <>
-                {visualization.streamlines && <StreamlinesOverlay windSpeed={windSpeed} windDirection={windDirection} />}
-                {visualization.pressure && <PressureOverlay windSpeed={windSpeed} windDirection={windDirection} />}
-                {visualization.velocity && <VelocityOverlay windSpeed={windSpeed} windDirection={windDirection} />}
-                {visualization.forces && <ForcesOverlay coefficients={forceCoefficients} windSpeed={windSpeed} windDirection={windDirection} />}
-                <AnalysisHighlightsOverlay analysisResult={analysisResult} visualization={visualization} />
-            </>
-          )}
-        </>
       )}
+
+      {showSimulation && (
+        <div 
+          className="relative w-full h-full"
+          style={{ perspective: '1000px' }}
+        >
+          {/* 3D Model Placeholder */}
+          <div 
+            className="absolute w-48 h-48 top-1/2 left-1/2"
+            style={{
+              transform: `translate3d(-50%, -50%, 0) translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom}) rotateX(${rotation.y}deg) rotateY(${rotation.x}deg)`,
+              transformStyle: 'preserve-3d',
+              transition: isDragging || isPanning ? 'none' : 'transform 0.1s ease-out',
+            }}
+          >
+            <div className="absolute w-full h-full bg-primary/20 border-2 border-primary rounded-lg flex items-center justify-center text-primary" style={{ transform: 'rotateY(0deg) translateZ(24px)' }}><CubeIcon className="w-16 h-16"/></div>
+          </div>
+          
+          {/* Visualization Overlays */}
+          <div 
+            className="absolute top-0 left-0 w-full h-full"
+             style={{
+                transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+                transition: isDragging || isPanning ? 'none' : 'transform 0.1s ease-out',
+            }}
+          >
+            {visualization.streamlines && <StreamlinesOverlay windSpeed={windSpeed} windDirection={windDirection} />}
+            {visualization.velocity && <VelocityOverlay windDirection={windDirection} />}
+            {visualization.pressure && <PressureOverlay windDirection={windDirection} />}
+            {visualization.forces && <ForceOverlay forceCoefficients={forceCoefficients} windDirection={windDirection} />}
+          </div>
+        </div>
+      )}
+
+      {showControlsHint && (
+         <div className="absolute bottom-2 right-2 bg-base-300/80 text-base-content/80 text-xs rounded-md p-2 pointer-events-none backdrop-blur-sm animate-[fadeIn_0.5s_ease-in-out]">
+            <h4 className="font-bold">Controls</h4>
+            <ul className="mt-1">
+                <li><strong className="font-semibold">Rotate:</strong> Left-click + Drag</li>
+                <li><strong className="font-semibold">Pan:</strong> Right-click + Drag</li>
+                <li><strong className="font-semibold">Zoom:</strong> Mouse Wheel</li>
+            </ul>
+         </div>
+      )}
+
     </div>
   );
 };
 
-// Fix: Add a default export so the component can be imported correctly in App.tsx.
 export default Viewer;
