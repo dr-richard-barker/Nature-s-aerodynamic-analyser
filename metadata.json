@@ -1,0 +1,5 @@
+{
+  "name": "Nature's Aerodynamics CFD GUI",
+  "description": "A user-friendly interface to simulate airflow around natural objects. Upload a 3D model, define wind conditions, and visualize complex aerodynamic forces using a simplified CFD modeling tool powered by AI analysis.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,360 @@
+import React, { useCallback, useMemo } from 'react';
+import { SimulationState, VisualizationOptions } from '../types';
+import { SparklesIcon } from './icons/SparklesIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
+
+// --- Visualization Icons ---
+const StreamlineIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+    <path d="M3 6s4-1 8-1 8 1 8 1"/>
+    <path d="M3 12s4-1 8-1 8 1 8 1"/>
+    <path d="M3 18s4-1 8-1 8 1 8 1"/>
+  </svg>
+);
+
+const VelocityVectorIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+    <path d="M4 12h16m-4-4l4 4-4 4"/>
+    <path d="M4 6h10m-2-2l2 2-2 2"/>
+    <path d="M4 18h13m-3-2l3 2-3 2"/>
+  </svg>
+);
+
+const PressureContourIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+    <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/>
+    <path d="M12 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/>
+    <path d="M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+  </svg>
+);
+
+const ForcesIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+    <path d="M2 12c4-3 10-3 16-1l4-1"/>
+    <path d="M12 11V3m-2 2l2-2 2 2"/>
+    <path d="M18 11h4m-2-2l2 2-2 2"/>
+  </svg>
+);
+// --- End Visualization Icons ---
+
+interface ForceCoefficients {
+  cd: number | null;
+  cl: number | null;
+}
+
+interface ResultsPanelProps {
+  simulationState: SimulationState;
+  visualization: VisualizationOptions;
+  onVisualizationChange: (viz: VisualizationOptions) => void;
+  analysisResult: string;
+  isGeneratingAnalysis: boolean;
+  onGenerateAnalysis: () => void;
+  forceCoefficients: ForceCoefficients;
+}
+
+const ToggleButton: React.FC<{ label: string; icon: React.ReactNode; active: boolean; onClick: () => void }> = ({ label, icon, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center gap-3 text-left px-3 py-2 text-sm rounded-md transition-colors ${
+      active ? 'bg-primary text-black font-semibold' : 'bg-base-300/50 hover:bg-base-300'
+    }`}
+  >
+    <span className={`w-5 h-5 ${active ? 'text-black/70' : 'text-primary'}`}>{icon}</span>
+    <span>{label}</span>
+  </button>
+);
+
+/**
+ * A simple markdown renderer that handles headings, paragraphs, lists, and bold text.
+ */
+const renderMarkdown = (text: string) => {
+  if (!text) return null;
+
+  const renderInline = (line: string): React.ReactNode => {
+    return (
+      <React.Fragment>
+        {line.split(/(\*\*.*?\*\*)/g).map((part, index) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={index}>{part.slice(2, -2)}</strong>;
+          }
+          return part;
+        })}
+      </React.Fragment>
+    );
+  };
+
+  const elements: React.ReactNode[] = [];
+  let currentListItems: string[] = [];
+
+  const flushList = () => {
+    if (currentListItems.length > 0) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} className="list-disc list-inside my-2 pl-2">
+          {currentListItems.map((item, index) => (
+            <li key={index}>{renderInline(item)}</li>
+          ))}
+        </ul>
+      );
+      currentListItems = [];
+    }
+  };
+
+  text.split('\n').forEach((line, index) => {
+    if (line.startsWith('### ')) {
+      flushList();
+      elements.push(<h3 key={index} className="text-secondary mt-4 mb-2">{renderInline(line.substring(4))}</h3>);
+    } else if (line.startsWith('## ')) {
+      flushList();
+      elements.push(<h2 key={index} className="text-primary mt-4 mb-2">{renderInline(line.substring(3))}</h2>);
+    } else if (line.startsWith('# ')) {
+      flushList();
+      elements.push(<h1 key={index} className="mt-4 mb-2">{renderInline(line.substring(2))}</h1>);
+    } else if (line.startsWith('- ')) {
+      currentListItems.push(line.substring(2));
+    } else if (line.trim()) {
+      flushList();
+      elements.push(<p key={index}>{renderInline(line)}</p>);
+    } else {
+      flushList(); // An empty line breaks a list
+    }
+  });
+
+  flushList(); // Flush any remaining list items at the end
+
+  return elements;
+};
+
+const AnalysisSkeleton: React.FC = () => (
+  <div className="space-y-4 animate-pulse p-2">
+    <div className="h-4 bg-base-300 rounded w-1/3"></div>
+    <div className="space-y-3 pt-2">
+      <div className="h-3 bg-base-300 rounded w-full"></div>
+      <div className="h-3 bg-base-300 rounded w-5/6"></div>
+      <div className="h-3 bg-base-300 rounded w-full"></div>
+    </div>
+    <div className="h-4 bg-base-300 rounded w-1/4 mt-6"></div>
+     <div className="space-y-3 pt-2">
+      <div className="h-3 bg-base-300 rounded w-full"></div>
+      <div className="h-3 bg-base-300 rounded w-4/6"></div>
+    </div>
+  </div>
+);
+
+
+const ResultsPanel: React.FC<ResultsPanelProps> = ({
+  simulationState,
+  visualization,
+  onVisualizationChange,
+  analysisResult,
+  isGeneratingAnalysis,
+  onGenerateAnalysis,
+  forceCoefficients,
+}) => {
+  if (simulationState !== SimulationState.COMPLETED) {
+    return (
+      <div className="flex items-center justify-center h-full text-base-content/70">
+        <p>Complete a simulation to view results.</p>
+      </div>
+    );
+  }
+
+  const handleVisualizationToggle = (activeViz: keyof VisualizationOptions) => {
+    onVisualizationChange({
+      streamlines: activeViz === 'streamlines',
+      pressure: activeViz === 'pressure',
+      velocity: activeViz === 'velocity',
+      forces: activeViz === 'forces',
+    });
+  };
+
+  const pressureData = useMemo(() => {
+    if (!analysisResult) return { peakGaugePressure: null, peakNegativePressure: null };
+
+    const gaugeRegex = /(?:peak gauge pressure)\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/i;
+    const negativeRegex = /(?:peak negative pressure)\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/i;
+
+    const gaugeMatch = analysisResult.match(gaugeRegex);
+    const negativeMatch = analysisResult.match(negativeRegex);
+
+    return {
+        peakGaugePressure: gaugeMatch ? parseFloat(gaugeMatch[1]).toFixed(2) : null,
+        peakNegativePressure: negativeMatch ? parseFloat(negativeMatch[1]).toFixed(2) : null,
+    };
+  }, [analysisResult]);
+
+  const { cd, cl } = forceCoefficients;
+  const liftToDragRatio = cd !== null && cl !== null && cd !== 0 ? cl / cd : null;
+
+
+  const handleExportCSV = useCallback(() => {
+    if (!analysisResult) return;
+
+    const dataMap = new Map<string, string>();
+    const dataPatterns = [
+      { key: "Drag Coefficient (Cd)", regex: /(?:drag coefficient \(Cd\)|Cd)\s*[:≈≈~]?\s*(-?\d+(?:\.\d+)?)/gi },
+      { key: "Lift Coefficient (Cl)", regex: /(?:lift coefficient \(Cl\)|Cl)\s*[:≈≈~]?\s*(-?\d+(?:\.\d+)?)/gi },
+      { key: "Peak Gauge Pressure (Pa)", regex: /(?:peak gauge pressure)\s*[:≈~]?\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/gi },
+      { key: "Peak Negative Pressure (Pa)", regex: /(?:peak negative pressure)\s*[:≈~]?\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/gi },
+      { key: "Dynamic Pressure (Pa)", regex: /(?:dynamic pressure)\s*[:≈~]?\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/gi }
+    ];
+
+    dataPatterns.forEach(({ key, regex }) => {
+      const matches = analysisResult.matchAll(regex);
+      for (const match of matches) {
+        if (match[1] && !dataMap.has(key)) {
+          dataMap.set(key, match[1]);
+        }
+      }
+    });
+
+    // Add calculated L/D Ratio
+    const { cd, cl } = forceCoefficients;
+    if (cd !== null && cl !== null && cd !== 0) {
+      const ldRatio = cl / cd;
+      dataMap.set("L/D Ratio", ldRatio.toFixed(2));
+    }
+    
+    if (dataMap.size === 0) {
+      alert("No quantitative data found in the analysis to export. Try generating an analysis focused on 'Aerodynamic Forces' or 'Pressure Contours' for more data.");
+      return;
+    }
+
+    const headers = ["Parameter", "Value"];
+    const csvRows = [
+        headers.join(','),
+        ...Array.from(dataMap.entries()).map(([key, value]) => `"${key}",${value}`)
+    ];
+    const csvString = csvRows.join('\n');
+    
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "simulation_analysis_data.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [analysisResult, forceCoefficients]);
+
+
+  return (
+    <div className="flex flex-col h-full space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white border-b border-primary/20 pb-2 mb-4">Results Visualization</h2>
+        <div className="space-y-2">
+          <ToggleButton
+            label="Streamlines"
+            icon={<StreamlineIcon />}
+            active={visualization.streamlines}
+            onClick={() => handleVisualizationToggle('streamlines')}
+          />
+          <ToggleButton
+            label="Velocity Vectors"
+            icon={<VelocityVectorIcon />}
+            active={visualization.velocity}
+            onClick={() => handleVisualizationToggle('velocity')}
+          />
+          <ToggleButton
+            label="Pressure Contours"
+            icon={<PressureContourIcon />}
+            active={visualization.pressure}
+            onClick={() => handleVisualizationToggle('pressure')}
+          />
+          <ToggleButton
+            label="Aerodynamic Forces"
+            icon={<ForcesIcon />}
+            active={visualization.forces}
+            onClick={() => handleVisualizationToggle('forces')}
+          />
+        </div>
+
+        {visualization.pressure && analysisResult && !isGeneratingAnalysis && (
+            <div className="mt-4 p-3 bg-base-100 rounded-lg animate-[fadeIn_0.3s_ease-in-out]">
+                <h4 className="text-sm font-semibold text-white mb-2">Key Pressure Values</h4>
+                <div className="space-y-1 text-xs">
+                    <div className="flex justify-between items-center">
+                        <span className="text-base-content">Peak Gauge Pressure:</span>
+                        {pressureData.peakGaugePressure ? (
+                             <span className="font-mono font-bold text-success">{pressureData.peakGaugePressure} Pa</span>
+                        ) : (
+                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
+                        )}
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-base-content">Peak Negative Pressure:</span>
+                         {pressureData.peakNegativePressure ? (
+                            <span className="font-mono font-bold text-warning">{pressureData.peakNegativePressure} Pa</span>
+                        ) : (
+                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {visualization.forces && analysisResult && !isGeneratingAnalysis && (
+            <div className="mt-4 p-3 bg-base-100 rounded-lg animate-[fadeIn_0.3s_ease-in-out]">
+                <h4 className="text-sm font-semibold text-white mb-2">Aerodynamic Coefficients</h4>
+                <div className="space-y-1 text-xs">
+                    <div className="flex justify-between items-center" title="Drag Coefficient (Cd): A measure of air resistance. Lower is generally better.">
+                        <span className="text-base-content">Drag Coefficient (Cd):</span>
+                        {cd !== null ? (
+                             <span className="font-mono font-bold text-info">{cd.toFixed(3)}</span>
+                        ) : (
+                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
+                        )}
+                    </div>
+                    <div className="flex justify-between items-center" title="Lift Coefficient (Cl): A measure of the lift force generated. Positive values indicate upward lift, negative values indicate downforce.">
+                        <span className="text-base-content">Lift Coefficient (Cl):</span>
+                         {cl !== null ? (
+                            <span className="font-mono font-bold text-info">{cl.toFixed(3)}</span>
+                        ) : (
+                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
+                        )}
+                    </div>
+                    <div className="flex justify-between items-center border-t border-primary/10 pt-1 mt-1" title="Lift-to-Drag Ratio: The amount of lift generated per unit of drag. A key indicator of aerodynamic efficiency.">
+                        <span className="text-base-content font-semibold">L/D Ratio:</span>
+                        {liftToDragRatio !== null ? (
+                            <span className="font-mono font-bold text-secondary">{liftToDragRatio.toFixed(2)}</span>
+                        ) : (
+                            <span className="font-mono text-base-content/50" title="Cannot be calculated from available data">N/A</span>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+      </div>
+
+      <div className="flex-grow flex flex-col">
+        <div className="flex justify-between items-center border-b border-primary/20 pb-2 mb-4">
+            <h2 className="text-xl font-bold text-white">AI Analysis</h2>
+            <button
+              onClick={handleExportCSV}
+              disabled={!analysisResult || isGeneratingAnalysis}
+              className="flex items-center gap-2 px-3 py-1 text-sm bg-neutral/60 text-base-content rounded-md hover:bg-neutral/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Export Data as CSV"
+            >
+              <DownloadIcon className="w-4 h-4"/>
+              <span>Export</span>
+            </button>
+        </div>
+        <button
+          onClick={onGenerateAnalysis}
+          disabled={isGeneratingAnalysis}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-4 bg-secondary/80 text-white font-bold rounded-lg hover:bg-secondary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <SparklesIcon className={`w-5 h-5 ${isGeneratingAnalysis ? 'animate-pulse' : ''}`}/>
+          <span>{isGeneratingAnalysis ? 'Generating...' : 'Generate Analysis'}</span>
+        </button>
+        <div className="flex-grow bg-base-100 rounded-md p-3 text-sm overflow-y-auto prose prose-invert prose-sm max-w-none prose-p:text-base-content prose-headings:text-white">
+          {isGeneratingAnalysis && <AnalysisSkeleton />}
+          {!isGeneratingAnalysis && !analysisResult && <p className="text-base-content/70">Click the button above to generate an AI-powered analysis of the simulation results.</p>}
+          {analysisResult && renderMarkdown(analysisResult)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ResultsPanel;
