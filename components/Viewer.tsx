@@ -2,6 +2,42 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { SimulationState, VisualizationOptions } from '../types';
 import { CubeIcon } from './icons/CubeIcon';
 
+// --- New Icons for Viewer Controls ---
+const CameraResetIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M10.6 4.6a9.9 9.9 0 1 0 5.8 16.8" />
+    <path d="M2 12h2a8 8 0 0 1 8-8V2" />
+    <path d="m12 12 4-4" />
+  </svg>
+);
+const ArrowIcon: React.FC<React.SVGProps<SVGSVGElement> & { direction: 'up' | 'down' | 'left' | 'right' }> = ({ direction, ...props }) => {
+  const rotations = { up: 0, right: 90, down: 180, left: 270 };
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <g transform={`rotate(${rotations[direction]} 12 12)`}>
+        <path d="M12 19V5M5 12l7-7 7 7" />
+      </g>
+    </svg>
+  );
+};
+const ZoomInIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        <line x1="11" y1="8" x2="11" y2="14"></line>
+        <line x1="8" y1="11" x2="14" y2="11"></line>
+    </svg>
+);
+const ZoomOutIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        <line x1="8" y1="11" x2="14" y2="11"></line>
+    </svg>
+);
+// --- End New Icons ---
+
+
 // --- Visualization Overlays ---
 
 const StreamlinesOverlay: React.FC<{ windSpeed: number; windDirection: number }> = ({ windSpeed, windDirection }) => {
@@ -170,9 +206,25 @@ const Viewer: React.FC<ViewerProps> = ({
     };
   }, [handleMouseMove, handleMouseUp]);
 
-  const showPlaceholder = simulationState === SimulationState.IDLE || simulationState === SimulationState.CONFIGURING;
-  const showSimulation = simulationState === SimulationState.RUNNING || simulationState === SimulationState.COMPLETED;
-  const showControlsHint = simulationState === SimulationState.IDLE || simulationState === SimulationState.CONFIGURING;
+  // --- New Handlers for explicit controls ---
+  const resetView = useCallback(() => {
+    setRotation({ x: -20, y: 20 });
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  const handlePanClick = (dx: number, dy: number) => {
+    setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+  };
+
+  const handleZoomSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setZoom(parseFloat(e.target.value));
+  };
+  // --- End New Handlers ---
+
+  // --- Updated Logic: Show model as soon as it's loaded ---
+  const showPlaceholder = simulationState === SimulationState.IDLE;
+  const showSimulation = simulationState !== SimulationState.IDLE;
   
   return (
     <div 
@@ -190,49 +242,82 @@ const Viewer: React.FC<ViewerProps> = ({
       )}
 
       {showSimulation && (
-        <div 
-          className="relative w-full h-full"
-          style={{ perspective: '1000px' }}
-        >
-          {/* 3D Model Placeholder */}
-          <div 
-            className="absolute w-48 h-48 top-1/2 left-1/2"
-            style={{
-              transform: `translate3d(-50%, -50%, 0) translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom}) rotateX(${rotation.y}deg) rotateY(${rotation.x}deg)`,
-              transformStyle: 'preserve-3d',
-              transition: isDragging || isPanning ? 'none' : 'transform 0.1s ease-out',
-            }}
-          >
-            <div className="absolute w-full h-full bg-primary/20 border-2 border-primary rounded-lg flex items-center justify-center text-primary" style={{ transform: 'rotateY(0deg) translateZ(24px)' }}><CubeIcon className="w-16 h-16"/></div>
-          </div>
-          
-          {/* Visualization Overlays */}
-          <div 
-            className="absolute top-0 left-0 w-full h-full"
-             style={{
-                transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
-                transition: isDragging || isPanning ? 'none' : 'transform 0.1s ease-out',
-            }}
-          >
-            {visualization.streamlines && <StreamlinesOverlay windSpeed={windSpeed} windDirection={windDirection} />}
-            {visualization.velocity && <VelocityOverlay windDirection={windDirection} />}
-            {visualization.pressure && <PressureOverlay windDirection={windDirection} />}
-            {visualization.forces && <ForceOverlay forceCoefficients={forceCoefficients} windDirection={windDirection} />}
-          </div>
-        </div>
-      )}
+        <>
+            <div 
+                className="relative w-full h-full"
+                style={{ perspective: '1000px' }}
+                >
+                {/* 3D Model Placeholder */}
+                <div 
+                    className="absolute w-48 h-48 top-1/2 left-1/2"
+                    style={{
+                    transform: `translate3d(-50%, -50%, 0) translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom}) rotateX(${rotation.y}deg) rotateY(${rotation.x}deg)`,
+                    transformStyle: 'preserve-3d',
+                    transition: isDragging || isPanning ? 'none' : 'transform 0.1s ease-out',
+                    }}
+                >
+                    <div className="absolute w-full h-full bg-primary/20 border-2 border-primary rounded-lg flex items-center justify-center text-primary" style={{ transform: 'rotateY(0deg) translateZ(24px)' }}><CubeIcon className="w-16 h-16"/></div>
+                </div>
+                
+                {/* Visualization Overlays */}
+                <div 
+                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                    style={{
+                        transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+                        transition: isDragging || isPanning ? 'none' : 'transform 0.1s ease-out',
+                    }}
+                >
+                    {simulationState === SimulationState.COMPLETED && visualization.streamlines && <StreamlinesOverlay windSpeed={windSpeed} windDirection={windDirection} />}
+                    {simulationState === SimulationState.COMPLETED && visualization.velocity && <VelocityOverlay windDirection={windDirection} />}
+                    {simulationState === SimulationState.COMPLETED && visualization.pressure && <PressureOverlay windDirection={windDirection} />}
+                    {simulationState === SimulationState.COMPLETED && visualization.forces && <ForceOverlay forceCoefficients={forceCoefficients} windDirection={windDirection} />}
+                </div>
+            </div>
 
-      {showControlsHint && (
-         <div className="absolute bottom-2 right-2 bg-base-300/80 text-base-content/80 text-xs rounded-md p-2 pointer-events-none backdrop-blur-sm animate-[fadeIn_0.5s_ease-in-out]">
-            <h4 className="font-bold">Controls</h4>
-            <ul className="mt-1">
-                <li><strong className="font-semibold">Rotate:</strong> Left-click + Drag</li>
-                <li><strong className="font-semibold">Pan:</strong> Right-click + Drag</li>
-                <li><strong className="font-semibold">Zoom:</strong> Mouse Wheel</li>
-            </ul>
-         </div>
-      )}
+            {/* --- NEW Explicit Viewer Controls --- */}
+            <div 
+                className="absolute top-2 left-2 bg-base-300/80 text-base-content rounded-lg p-2 flex flex-col items-center gap-2 backdrop-blur-sm shadow-lg"
+                onMouseDown={(e) => e.stopPropagation()} // Prevent triggering drag on the parent
+                onWheel={(e) => e.stopPropagation()}
+            >
+                <div className="grid grid-cols-3 gap-1 w-24">
+                    <div/>
+                    <button onClick={() => handlePanClick(0, -20)} className="p-1 rounded-md hover:bg-base-100 transition-colors" title="Pan Up"><ArrowIcon direction="up" className="w-5 h-5 mx-auto" /></button>
+                    <div/>
+                    <button onClick={() => handlePanClick(-20, 0)} className="p-1 rounded-md hover:bg-base-100 transition-colors" title="Pan Left"><ArrowIcon direction="left" className="w-5 h-5 mx-auto" /></button>
+                    <button onClick={resetView} title="Reset View" className="p-1 rounded-md hover:bg-base-100 transition-colors"><CameraResetIcon className="w-5 h-5 mx-auto" /></button>
+                    <button onClick={() => handlePanClick(20, 0)} className="p-1 rounded-md hover:bg-base-100 transition-colors" title="Pan Right"><ArrowIcon direction="right" className="w-5 h-5 mx-auto" /></button>
+                    <div/>
+                    <button onClick={() => handlePanClick(0, 20)} className="p-1 rounded-md hover:bg-base-100 transition-colors" title="Pan Down"><ArrowIcon direction="down" className="w-5 h-5 mx-auto" /></button>
+                    <div/>
+                </div>
+                <div className="flex items-center gap-2 w-full px-1">
+                    <ZoomOutIcon className="w-4 h-4 text-base-content/70" />
+                    <input
+                        type="range"
+                        min="0.2"
+                        max="3"
+                        step="0.05"
+                        value={zoom}
+                        onChange={handleZoomSliderChange}
+                        className="w-full h-1 bg-base-100 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full"
+                        title="Zoom"
+                    />
+                    <ZoomInIcon className="w-4 h-4 text-base-content/70" />
+                </div>
+            </div>
 
+            {/* Updated Controls Hint */}
+            <div className="absolute bottom-2 right-2 bg-base-300/80 text-base-content/80 text-xs rounded-md p-2 pointer-events-none backdrop-blur-sm animate-[fadeIn_0.5s_ease-in-out]">
+                <h4 className="font-bold">Controls</h4>
+                <ul className="mt-1">
+                    <li><strong className="font-semibold">Rotate:</strong> Left-click + Drag</li>
+                    <li><strong className="font-semibold">Pan:</strong> Right-click + Drag</li>
+                    <li><strong className="font-semibold">Zoom:</strong> Mouse Wheel</li>
+                </ul>
+            </div>
+        </>
+      )}
     </div>
   );
 };

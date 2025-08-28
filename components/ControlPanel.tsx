@@ -1,4 +1,3 @@
-
 import React, { useCallback, useRef } from 'react';
 import { SimulationState } from '../types';
 import { UploadIcon } from './icons/UploadIcon';
@@ -39,6 +38,52 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     fileInputRef.current?.click();
   };
   
+  const handleLoadDemo = useCallback(() => {
+    const objContent = `
+# Simple Leaf 3D Model by AI Studio
+# Vertices
+v 0.0 0.0 0.0    # 1 Stem base
+v 0.0 5.0 0.0    # 2 Tip
+
+# Top surface
+v -1.0 1.5 0.1   # 3 Left 1
+v -1.5 3.0 0.15  # 4 Left 2
+v 1.0 1.5 0.1    # 5 Right 1
+v 1.5 3.0 0.15   # 6 Right 2
+
+# Bottom surface (mirror Z)
+v -1.0 1.5 -0.1  # 7 Left 1 bottom
+v -1.5 3.0 -0.15 # 8 Left 2 bottom
+v 1.0 1.5 -0.1   # 9 Right 1 bottom
+v 1.5 3.0 -0.15  # 10 Right 2 bottom
+
+# Top Faces
+f 1 3 5
+f 3 4 6
+f 3 6 5
+f 4 2 6
+
+# Bottom Faces
+f 1 9 7
+f 7 10 8
+f 7 9 10
+f 8 10 2
+
+# Edge Faces
+f 1 7 3
+f 1 5 9
+f 3 7 8
+f 3 8 4
+f 5 6 10
+f 5 10 9
+f 4 8 2
+f 6 2 10
+    `.trim();
+    const blob = new Blob([objContent], { type: 'text/plain' });
+    const file = new File([blob], 'leaf_demo.obj', { type: 'text/plain' });
+    onModelUpload(file);
+  }, [onModelUpload]);
+
   const isIdle = simulationState === SimulationState.IDLE;
   const isConfiguring = simulationState === SimulationState.CONFIGURING;
   const isRunning = simulationState === SimulationState.RUNNING;
@@ -65,7 +110,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <UploadIcon className="w-5 h-5" />
           <span>{isIdle ? 'Upload Model' : 'Model Loaded'}</span>
         </button>
-        <p className="text-xs text-center text-base-content/60">
+        <div className="text-center">
+            <span className="text-xs text-base-content/60">or </span>
+            <button 
+                onClick={handleLoadDemo}
+                disabled={!isIdle}
+                className="text-xs text-secondary hover:underline disabled:text-base-content/50 disabled:no-underline disabled:cursor-not-allowed"
+            >
+                load a demo leaf model
+            </button>
+        </div>
+        <p className="text-xs text-center text-base-content/60 pt-1">
           Accepted formats: .stl, .obj, .ply
         </p>
       </div>

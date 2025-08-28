@@ -64,6 +64,20 @@ const ToggleButton: React.FC<{ label: string; icon: React.ReactNode; active: boo
   </button>
 );
 
+const DataRow: React.FC<{ label: string; value: string | number | null; unit?: string; title?: string; colorClass?: string }> = ({ label, value, unit, title, colorClass = 'text-info' }) => (
+    <div className="flex justify-between items-center py-0.5" title={title}>
+        <span className="text-base-content">{label}:</span>
+        {value !== null && value !== undefined ? (
+            <span className={`font-mono font-bold ${colorClass}`}>
+                {typeof value === 'number' ? value.toFixed(3) : value}
+                {unit && <span className="text-xs font-sans opacity-70"> {unit}</span>}
+            </span>
+        ) : (
+            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
+        )}
+    </div>
+);
+
 /**
  * A simple markdown renderer that handles headings, paragraphs, lists, and bold text.
  */
@@ -184,37 +198,21 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
 
   const { cd, cl } = forceCoefficients;
   const liftToDragRatio = cd !== null && cl !== null && cd !== 0 ? cl / cd : null;
-
+  
+  const hasQuantData = cd !== null || cl !== null || pressureData.peakGaugePressure !== null || pressureData.peakNegativePressure !== null;
 
   const handleExportCSV = useCallback(() => {
-    if (!analysisResult) return;
-
-    const dataMap = new Map<string, string>();
-    const dataPatterns = [
-      { key: "Drag Coefficient (Cd)", regex: /(?:drag coefficient \(Cd\)|Cd)\s*[:≈≈~]?\s*(-?\d+(?:\.\d+)?)/gi },
-      { key: "Lift Coefficient (Cl)", regex: /(?:lift coefficient \(Cl\)|Cl)\s*[:≈≈~]?\s*(-?\d+(?:\.\d+)?)/gi },
-      { key: "Peak Gauge Pressure (Pa)", regex: /(?:peak gauge pressure)\s*[:≈~]?\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/gi },
-      { key: "Peak Negative Pressure (Pa)", regex: /(?:peak negative pressure)\s*[:≈~]?\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/gi },
-      { key: "Dynamic Pressure (Pa)", regex: /(?:dynamic pressure)\s*[:≈~]?\s*.*?(-?\d+(?:\.\d+)?)\s*Pa/gi }
+    const data: [string, string | number | null][] = [
+      ['Drag Coefficient (Cd)', cd],
+      ['Lift Coefficient (Cl)', cl],
+      ['L/D Ratio', liftToDragRatio ? liftToDragRatio.toFixed(3) : null],
+      ['Peak Gauge Pressure (Pa)', pressureData.peakGaugePressure],
+      ['Peak Negative Pressure (Pa)', pressureData.peakNegativePressure],
     ];
 
-    dataPatterns.forEach(({ key, regex }) => {
-      const matches = analysisResult.matchAll(regex);
-      for (const match of matches) {
-        if (match[1] && !dataMap.has(key)) {
-          dataMap.set(key, match[1]);
-        }
-      }
-    });
+    const filteredData = data.filter(([, value]) => value !== null && value !== undefined);
 
-    // Add calculated L/D Ratio
-    const { cd, cl } = forceCoefficients;
-    if (cd !== null && cl !== null && cd !== 0) {
-      const ldRatio = cl / cd;
-      dataMap.set("L/D Ratio", ldRatio.toFixed(2));
-    }
-    
-    if (dataMap.size === 0) {
+    if (filteredData.length === 0) {
       alert("No quantitative data found in the analysis to export. Try generating an analysis focused on 'Aerodynamic Forces' or 'Pressure Contours' for more data.");
       return;
     }
@@ -222,7 +220,7 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
     const headers = ["Parameter", "Value"];
     const csvRows = [
         headers.join(','),
-        ...Array.from(dataMap.entries()).map(([key, value]) => `"${key}",${value}`)
+        ...filteredData.map(([key, value]) => `"${key}",${value}`)
     ];
     const csvString = csvRows.join('\n');
     
@@ -235,8 +233,9 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [analysisResult, forceCoefficients]);
+  }, [cd, cl, liftToDragRatio, pressureData]);
 
+  const hasExportableData = hasQuantData;
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -269,61 +268,66 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
           />
         </div>
 
-        {visualization.pressure && analysisResult && !isGeneratingAnalysis && (
-            <div className="mt-4 p-3 bg-base-100 rounded-lg animate-[fadeIn_0.3s_ease-in-out]">
-                <h4 className="text-sm font-semibold text-white mb-2">Key Pressure Values</h4>
-                <div className="space-y-1 text-xs">
-                    <div className="flex justify-between items-center">
-                        <span className="text-base-content">Peak Gauge Pressure:</span>
-                        {pressureData.peakGaugePressure ? (
-                             <span className="font-mono font-bold text-success">{pressureData.peakGaugePressure} Pa</span>
-                        ) : (
-                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
-                        )}
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-base-content">Peak Negative Pressure:</span>
-                         {pressureData.peakNegativePressure ? (
-                            <span className="font-mono font-bold text-warning">{pressureData.peakNegativePressure} Pa</span>
-                        ) : (
-                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
-                        )}
-                    </div>
-                </div>
-            </div>
-        )}
+        {visualization.pressure && analysisResult && !isGeneratingAnalysis && (() => {
+            const hasPressureData = pressureData.peakGaugePressure !== null || pressureData.peakNegativePressure !== null;
+            if (!hasPressureData) return null;
+            
+            return (
+              <div className="mt-4 p-3 bg-base-100 rounded-lg animate-[fadeIn_0.3s_ease-in-out]">
+                  <h4 className="text-sm font-semibold text-white mb-2">Pressure Summary</h4>
+                  <div className="space-y-1 text-xs">
+                      <DataRow label="Peak Gauge Pressure" value={pressureData.peakGaugePressure} unit="Pa" colorClass="text-success" />
+                      <DataRow label="Peak Negative Pressure" value={pressureData.peakNegativePressure} unit="Pa" colorClass="text-warning" />
+                  </div>
+              </div>
+            );
+        })()}
 
-        {visualization.forces && analysisResult && !isGeneratingAnalysis && (
-            <div className="mt-4 p-3 bg-base-100 rounded-lg animate-[fadeIn_0.3s_ease-in-out]">
-                <h4 className="text-sm font-semibold text-white mb-2">Aerodynamic Coefficients</h4>
-                <div className="space-y-1 text-xs">
-                    <div className="flex justify-between items-center" title="Drag Coefficient (Cd): A measure of air resistance. Lower is generally better.">
-                        <span className="text-base-content">Drag Coefficient (Cd):</span>
-                        {cd !== null ? (
-                             <span className="font-mono font-bold text-info">{cd.toFixed(3)}</span>
-                        ) : (
-                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
-                        )}
-                    </div>
-                    <div className="flex justify-between items-center" title="Lift Coefficient (Cl): A measure of the lift force generated. Positive values indicate upward lift, negative values indicate downforce.">
-                        <span className="text-base-content">Lift Coefficient (Cl):</span>
-                         {cl !== null ? (
-                            <span className="font-mono font-bold text-info">{cl.toFixed(3)}</span>
-                        ) : (
-                            <span className="font-mono text-base-content/50" title="Value not found in analysis text">N/A</span>
-                        )}
-                    </div>
-                    <div className="flex justify-between items-center border-t border-primary/10 pt-1 mt-1" title="Lift-to-Drag Ratio: The amount of lift generated per unit of drag. A key indicator of aerodynamic efficiency.">
-                        <span className="text-base-content font-semibold">L/D Ratio:</span>
-                        {liftToDragRatio !== null ? (
-                            <span className="font-mono font-bold text-secondary">{liftToDragRatio.toFixed(2)}</span>
-                        ) : (
-                            <span className="font-mono text-base-content/50" title="Cannot be calculated from available data">N/A</span>
-                        )}
-                    </div>
-                </div>
-            </div>
-        )}
+        {visualization.forces && analysisResult && !isGeneratingAnalysis && (() => {
+            const hasCoefficients = cd !== null || cl !== null;
+            if (!hasCoefficients) return null;
+            
+            const maxAbsCoeff = Math.max(Math.abs(cd ?? 0), Math.abs(cl ?? 0), 0.1);
+            const getBarWidth = (val: number | null) => {
+                if (val === null) return '0%';
+                return `${(Math.abs(val) / maxAbsCoeff) * 100}%`;
+            };
+
+            return (
+              <div className="mt-4 p-3 bg-base-100 rounded-lg animate-[fadeIn_0.3s_ease-in-out]">
+                  <h4 className="text-sm font-semibold text-white mb-2">Force Comparison</h4>
+                  <div className="space-y-2 text-xs font-mono">
+                      {cd !== null && (
+                          <div className="grid grid-cols-[5rem_1fr] items-center gap-2">
+                              <span className="text-base-content truncate" title="Drag (Cd)">Drag (Cd)</span>
+                              <div className="flex-1 bg-base-300/50 rounded-sm h-5 p-0.5">
+                                  <div 
+                                      className="bg-info h-full rounded-sm text-right px-2 text-black text-xs font-bold flex items-center justify-end transition-all duration-500"
+                                      style={{ width: getBarWidth(cd) }}
+                                  >
+                                      <span>{cd.toFixed(3)}</span>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                      {cl !== null && (
+                          <div className="grid grid-cols-[5rem_1fr] items-center gap-2">
+                              <span className="text-base-content truncate" title={cl >= 0 ? 'Lift (Cl)' : 'Downforce (Cl)'}>
+                                  {cl >= 0 ? 'Lift (Cl)' : 'Downforce (Cl)'}
+                              </span>
+                              <div className="flex-1 bg-base-300/50 rounded-sm h-5 p-0.5">
+                                  <div
+                                      className="bg-secondary h-full rounded-sm text-right px-2 text-black text-xs font-bold flex items-center justify-end transition-all duration-500"
+                                      style={{ width: getBarWidth(cl) }}
+                                  >
+                                      <span>{cl.toFixed(3)}</span>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+          )})()}
       </div>
 
       <div className="flex-grow flex flex-col">
@@ -331,7 +335,7 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
             <h2 className="text-xl font-bold text-white">AI Analysis</h2>
             <button
               onClick={handleExportCSV}
-              disabled={!analysisResult || isGeneratingAnalysis}
+              disabled={!hasExportableData || isGeneratingAnalysis}
               className="flex items-center gap-2 px-3 py-1 text-sm bg-neutral/60 text-base-content rounded-md hover:bg-neutral/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               title="Export Data as CSV"
             >
@@ -339,6 +343,24 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
               <span>Export</span>
             </button>
         </div>
+        
+        {analysisResult && !isGeneratingAnalysis && hasQuantData && (
+          <div className="mb-4 p-3 bg-base-100 rounded-lg animate-[fadeIn_0.3s_ease-in-out]">
+            <h4 className="text-sm font-semibold text-white mb-2">Quantitative Summary</h4>
+            <div className="space-y-1 text-xs">
+              <DataRow label="Drag Coefficient (Cd)" value={cd} title="A measure of air resistance. Lower is generally better." colorClass="text-info"/>
+              <DataRow label="Lift Coefficient (Cl)" value={cl} title="Positive for upward lift, negative for downforce." colorClass="text-secondary"/>
+              <div className="border-t border-primary/10 pt-1 mt-1">
+                 <DataRow label="L/D Ratio" value={liftToDragRatio !== null ? liftToDragRatio.toFixed(2) : null} title="Lift-to-Drag Ratio: A key indicator of aerodynamic efficiency." colorClass="text-accent"/>
+              </div>
+              <div className="border-t border-primary/10 pt-1 mt-1">
+                  <DataRow label="Peak Gauge Pressure" value={pressureData.peakGaugePressure} unit="Pa" colorClass="text-success" />
+                  <DataRow label="Peak Negative Pressure" value={pressureData.peakNegativePressure} unit="Pa" colorClass="text-warning" />
+              </div>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={onGenerateAnalysis}
           disabled={isGeneratingAnalysis}
